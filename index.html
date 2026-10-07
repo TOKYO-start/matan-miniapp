@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Матанализ</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.min.js"></script>
+<style>
+  /* Запасные цвета для обычного браузера; внутри Telegram берутся цвета темы пользователя. */
+  :root {
+    --fb-bg: #efeff4; --fb-card: #ffffff; --fb-text: #000000; --fb-hint: #8e8e93;
+    --fb-accent: #2481cc; --fb-accent-text: #ffffff; --fb-danger: #e5484d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fb-bg: #101012; --fb-card: #1f1f22; --fb-text: #ffffff; --fb-hint: #8d8e93;
+      --fb-accent: #3e88f7; --fb-danger: #ff6369;
+    }
+  }
+  :root {
+    --bg: var(--tg-theme-secondary-bg-color, var(--fb-bg));
+    --card: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, var(--fb-card)));
+    --text: var(--tg-theme-text-color, var(--fb-text));
+    --hint: var(--tg-theme-hint-color, var(--fb-hint));
+    --accent: var(--tg-theme-button-color, var(--fb-accent));
+    --accent-text: var(--tg-theme-button-text-color, var(--fb-accent-text));
+    --danger: var(--tg-theme-destructive-text-color, var(--fb-danger));
+    --ok: #30a46c;
+    --line: color-mix(in srgb, var(--hint) 22%, transparent);
+    --soft: color-mix(in srgb, var(--accent) 12%, var(--card));
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    min-height: var(--tg-viewport-stable-height, 100vh);
+    padding: 12px 16px calc(24px + env(safe-area-inset-bottom));
+    max-width: 640px; margin: 0 auto;
+  }
+  button { font: inherit; color: inherit; border: 0; cursor: pointer; }
+
+  header { display: flex; align-items: center; justify-content: space-between; margin: 4px 2px 14px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+  .stats {
+    background: var(--card); border-radius: 999px; padding: 6px 12px;
+    font-size: 14px; font-variant-numeric: tabular-nums; display: flex; gap: 10px;
+  }
+  .stats b { font-weight: 600; }
+
+  .chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px 10px; padding: 0 16px; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: none; background: var(--card); padding: 8px 14px; border-radius: 999px; font-size: 15px;
+    transition: background .15s, color .15s;
+  }
+  .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
+
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--card); border-radius: 12px; padding: 3px; margin-bottom: 14px; }
+  .seg button { padding: 7px 0; border-radius: 9px; font-size: 14px; background: transparent; color: var(--hint); }
+  .seg button[aria-pressed="true"] { background: var(--soft); color: var(--accent); font-weight: 600; }
+
+  .card { background: var(--card); border-radius: 16px; padding: 16px; margin-bottom: 12px; }
+  .prompt { font-size: 14px; color: var(--hint); display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { color: var(--accent); }
+  .formula { overflow-x: auto; overflow-y: hidden; padding: 4px 0; min-height: 64px; display: flex; align-items: center; }
+  .formula .katex-display { margin: 10px 0 4px; width: 100%; }
+  .formula .katex { font-size: 1.3em; }
+
+  .field {
+    display: flex; align-items: center; gap: 8px; border: 1.5px solid var(--line);
+    border-radius: 12px; padding: 0 12px; background: var(--bg); transition: border-color .15s;
+  }
+  .field:focus-within { border-color: var(--accent); }
+  .field span { color: var(--hint); font-size: 15px; white-space: nowrap; }
+  input {
+    flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text);
+    font: 17px/1 ui-monospace, "SF Mono", Menlo, monospace; padding: 13px 0;
+  }
+  input::placeholder { color: var(--hint); opacity: .7; }
+  .preview { min-height: 34px; padding: 8px 2px 0; overflow-x: auto; color: var(--text); font-size: 15px; }
+  .preview.err { color: var(--hint); font-size: 13px; }
+
+  .keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; margin-top: 10px; }
+  .keys button {
+    background: var(--bg); border-radius: 9px; padding: 9px 0; font-size: 15px; touch-action: manipulation;
+  }
+  .keys button:active { background: var(--soft); }
+  .keys .fn { font-size: 13px; }
+
+  .row { display: flex; gap: 8px; margin-top: 12px; }
+  .btn { flex: 1; padding: 13px 0; border-radius: 12px; font-weight: 600; font-size: 16px; }
+  .btn.primary { background: var(--accent); color: var(--accent-text); }
+  .btn.ghost { background: var(--soft); color: var(--accent); }
+  .btn.subtle { background: transparent; color: var(--accent); font-weight: 500; font-size: 15px; padding: 10px 0; }
+  .row.tools { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 6px; }
+  .btn:active { opacity: .8; }
+  .choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .choice .btn { padding: 16px 0; }
+
+  .feedback { display: none; border-radius: 12px; padding: 12px 14px; margin-top: 12px; font-weight: 600; }
+  .feedback.ok { display: block; background: color-mix(in srgb, var(--ok) 15%, var(--card)); color: var(--ok); }
+  .feedback.bad { display: block; background: color-mix(in srgb, var(--danger) 13%, var(--card)); color: var(--danger); }
+  .feedback.info { display: block; background: var(--soft); color: var(--accent); font-weight: 500; }
+
+  .solution { display: none; }
+  .solution.show { display: block; }
+  .solution h2 { font-size: 14px; font-weight: 500; color: var(--hint); margin: 0 0 4px; }
+  .solution .note { color: var(--hint); font-size: 14px; margin-top: 6px; }
+  .solution .verdict { font-size: 18px; font-weight: 600; }
+
+  details { color: var(--hint); font-size: 14px; padding: 4px 4px 0; }
+  summary { cursor: pointer; padding: 6px 0; }
+  details ul { margin: 4px 0 0; padding-left: 18px; }
+  details code { font-family: ui-monospace, Menlo, monospace; color: var(--text); }
+
+  .shake { animation: shake .35s; }
+  @keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+  .center { text-align: center; color: var(--hint); padding: 40px 0; }
+  @media (prefers-reduced-motion: reduce) { .shake { animation: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Матанализ</h1>
+  <button class="stats" id="stats" title="Статистика (нажмите, чтобы сбросить)">
+    <span>✓ <b id="sOk">0</b>/<span id="sTotal">0</span></span>
+    <span>🔥 <b id="sStreak">0</b></span>
+  </button>
+</header>
+
+<nav class="chips" id="topics" aria-label="Тема"></nav>
+<div class="seg" id="levels" role="group" aria-label="Сложность"></div>
+
+<main id="app">
+  <div class="card center" id="loading">Загружаем задачи…</div>
+
+  <section id="taskView" hidden>
+    <div class="card">
+      <div class="prompt"><span class="tag" id="tag"></span><span id="prompt"></span></div>
+      <div class="formula" id="formula"></div>
+    </div>
+
+    <div class="card" id="answerCard">
+      <div id="exprBox">
+        <label class="field">
+          <span id="ansLabel">Ответ</span>
+          <input id="answer" type="text" autocomplete="off" autocorrect="off" autocapitalize="off"
+                 spellcheck="false" enterkeyhint="done" placeholder="например, 2x·sin(x)">
+        </label>
+        <div class="preview err" id="preview"></div>
+        <div class="keys" id="keys"></div>
+        <div class="row">
+          <button class="btn primary" id="checkBtn">Проверить</button>
+        </div>
+      </div>
+      <div class="choice" id="choiceBox" hidden>
+        <button class="btn ghost" data-choice="conv">Сходится</button>
+        <button class="btn ghost" data-choice="div">Расходится</button>
+      </div>
+      <div class="feedback" id="feedback"></div>
+      <div class="row tools" id="tools">
+        <button class="btn subtle" id="showBtn">💡 Показать ответ</button>
+        <button class="btn subtle" id="nextBtn">Пропустить →</button>
+      </div>
+    </div>
+
+    <div class="card solution" id="solution">
+      <h2>Правильный ответ</h2>
+      <div id="solTex"></div>
+      <div class="note" id="solNote"></div>
+    </div>
+
+    <details>
+      <summary>Как вводить ответ</summary>
+      <ul>
+        <li>степень: <code>x^2</code>, <code>e^(3x)</code>; умножение: <code>2x</code>, <code>x*sin(x)</code></li>
+        <li>функции: <code>sin cos tg ln sqrt arctg exp</code>, модуль: <code>|x|</code></li>
+        <li>константы: <code>pi</code> (или π), <code>e</code>; дроби: <code>1/3</code>, <code>pi/4</code></li>
+        <li>в интегралах <code>+ C</code> писать не обязательно</li>
+        <li>засчитывается любая верная запись — под полем видно, как понят ваш ответ</li>
+      </ul>
+    </details>
+  </section>
+</main>
+
+<script>
+const tg = window.Telegram && window.Telegram.WebApp;
+const tgAtLeast = v => !!(tg && tg.isVersionAtLeast && tg.isVersionAtLeast(v));
+
+const TOPICS = [
+  ["random", "🎲 Любая"], ["limit", "Пределы"], ["deriv", "Производные"],
+  ["int", "Интегралы"], ["defint", "Опред. интегралы"], ["series", "Ряды"],
+];
+const TOPIC_NAME = Object.fromEntries(TOPICS);
+const LEVELS = [[1, "Лёгкий"], [2, "Средний"], [3, "Сложный"]];
+const KEYS = [
+  ["x"], ["^"], ["("], [")"], ["/"], ["*", "·"], ["+"], ["-", "−"],
+  ["pi", "π"], ["e"], ["sqrt(", "√"], ["sin(", "sin", "fn"], ["cos(", "cos", "fn"],
+  ["tg(", "tg", "fn"], ["ln(", "ln", "fn"], ["arctg(", "arctg", "fn"], ["⌫", "⌫"],
+];
+
+const $ = id => document.getElementById(id);
+let BANK = null, cur = null, curTopic = null, solved = false, revealed = false;
+let settings = { topic: "random", level: 1 };
+let stats = { ok: 0, total: 0, streak: 0, best: 0 };
+const recent = [];
+
+// ---------- хранилище: облако Telegram, иначе localStorage ----------
+const useCloud = tgAtLeast("6.9") && !!tg.CloudStorage;
+const store = {
+  get(key) {
+    return new Promise(resolve => {
+      if (useCloud) {
+        try { tg.CloudStorage.getItem(key, (err, v) => resolve(err ? null : v)); } catch { resolve(null); }
+      } else {
+        try { resolve(localStorage.getItem(key)); } catch { resolve(null); }
+      }
+    });
+  },
+  set(key, value) {
+    if (useCloud) { try { tg.CloudStorage.setItem(key, value); } catch {} }
+    else { try { localStorage.setItem(key, value); } catch {} }
+  },
+};
+const saveSettings = () => store.set("settings", JSON.stringify(settings));
+const saveStats = () => store.set("stats", JSON.stringify(stats));
+
+function haptic(kind) {
+  if (!tgAtLeast("6.1")) return;
+  try {
+    if (kind === "select") tg.HapticFeedback.selectionChanged();
+    else tg.HapticFeedback.notificationOccurred(kind);
+  } catch {}
+}
+
+// ---------- разбор и проверка ответа ----------
+const FUNCS = new Set(["sin", "cos", "tan", "tg", "cot", "ctg", "exp", "log", "ln", "sqrt", "abs",
+  "atan", "arctan", "arctg", "asin", "arcsin", "acos", "arccos", "sinh", "cosh"]);
+const VARS = new Set(["x", "e", "pi", "C"]);
+const NODE_TYPES = new Set(["OperatorNode", "ConstantNode", "SymbolNode", "FunctionNode", "ParenthesisNode"]);
+
+class UserError extends Error {}
+
+function setupMath() {
+  math.import({
+    ln: v => math.log(v), tg: v => math.tan(v), ctg: v => math.cot(v),
+    arctg: v => math.atan(v), arctan: v => math.atan(v),
+    arcsin: v => math.asin(v), arccos: v => math.acos(v),
+  }, { override: false });
+}
+
+function normalize(s) {
+  s = s.trim()
+    .replace(/[·×]/g, "*").replace(/[−–—]/g, "-").replace(/π/g, "pi")
+    .replace(/√\s*(\d+(?:\.\d+)?|pi|[a-z])/g, "sqrt($1)").replace(/√/g, "sqrt")
+    .replace(/\*\*/g, "^").replace(/(\d),(\d)/g, "$1.$2");
+  for (let prev = null; prev !== s;) { prev = s; s = s.replace(/\|([^|]*)\|/, "(abs($1))"); }
+  return s.replace(/\+\s*C\s*$/, "").trim();
+}
+
+function parseAnswer(raw) {
+  const s = normalize(raw);
+  if (!s) throw new UserError("Введите ответ");
+  if (s.length > 200) throw new UserError("Слишком длинный ответ");
+  let node;
+  try { node = math.parse(s); } catch { throw new UserError("Не получается разобрать запись"); }
+  // Пускаем только арифметику, известные функции и переменные — никаких присваиваний и т.п.
+  node.traverse((nd, path, parent) => {
+    if (!NODE_TYPES.has(nd.type)) throw new UserError("Недопустимая запись");
+    if (nd.type === "FunctionNode" && !(nd.fn.type === "SymbolNode" && FUNCS.has(nd.fn.name)))
+      throw new UserError(`Неизвестная функция ${nd.fn.name || ""}`);
+    const isFnName = parent && parent.type === "FunctionNode" && parent.fn === nd;
+    if (nd.type === "SymbolNode" && !isFnName && !VARS.has(nd.name))
+      throw new UserError(`Непонятно, что такое «${nd.name}». Между множителями ставьте *`);
+  });
+  return node;
+}
+
+function toReal(v) {
+  if (typeof v === "number") return v;
+  if (v && typeof v.re === "number") return Math.abs(v.im) < 1e-12 ? v.re : NaN;
+  return NaN;
+}
+const close = (a, b, tol) => Number.isFinite(a) && Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
+
+function isCorrect(node, check) {
+  const code = node.compile();
+  const at = xv => { try { return toReal(code.evaluate({ x: xv, C: 0 })); } catch { return NaN; } };
+  if (check.t === "value") {
+    if (node.filter(n => n.type === "SymbolNode" && n.name === "x").length)
+      throw new UserError("Здесь ответ — число, в нём не должно быть x");
+    return close(at(0), check.v, 1e-7);
+  }
+  if (check.t === "func") return check.pts.every(([p, y]) => close(at(p), y, 1e-6));
+  // antideriv: численно дифференцируем ответ и сравниваем с подынтегральной функцией
+  return check.pts.every(([p, y]) => {
+    const h = 1e-5 * Math.max(1, Math.abs(p));
+    return close((at(p + h) - at(p - h)) / (2 * h), y, 1e-5);
+  });
+}
+
+// ---------- отрисовка ----------
+function tex(el, src) {
+  try { katex.render(src, el, { displayMode: true, throwOnError: false }); }
+  catch { el.textContent = src; }
+}
+
+function renderStats() {
+  $("sOk").textContent = stats.ok;
+  $("sTotal").textContent = stats.total;
+  $("sStreak").textContent = stats.streak;
+}
+
+function renderControls() {
+  $("topics").innerHTML = "";
+  for (const [key, name] of TOPICS) {
+    const b = document.createElement("button");
+    b.className = "chip"; b.textContent = name;
+    b.setAttribute("aria-pressed", settings.topic === key);
+    b.onclick = () => { settings.topic = key; saveSettings(); haptic("select"); renderControls(); nextTask(); };
+    $("topics").append(b);
+  }
+  $("levels").innerHTML = "";
+  for (const [lv, name] of LEVELS) {
+    const b = document.createElement("button");
+    b.textContent = name;
+    b.setAttribute("aria-pressed", settings.level === lv);
+    b.onclick = () => { settings.level = lv; saveSettings(); haptic("select"); renderControls(); nextTask(); };
+    $("levels").append(b);
+  }
+}
+
+function renderKeys() {
+  const input = $("answer");
+  for (const [ins, label = ins, cls] of KEYS) {
+    const b = document.createElement("button");
+    b.textContent = label;
+    if (cls) b.className = cls;
+    // pointerdown + preventDefault: поле не теряет фокус и экранная клавиатура не прыгает
+    b.addEventListener("pointerdown", e => e.preventDefault());
+    b.addEventListener("click", () => {
+      const s = input.selectionStart ?? input.value.length, t = input.selectionEnd ?? s;
+      if (ins === "⌫") {
+        const from = s === t ? Math.max(0, s - 1) : s;
+        input.setRangeText("", from, t, "end");
+      } else {
+        input.setRangeText(ins, s, t, "end");
+      }
+      haptic("select");
+      updatePreview();
+    });
+    $("keys").append(b);
+  }
+}
+
+function setFeedback(kind, text) {
+  const f = $("feedback");
+  f.className = "feedback" + (kind ? " " + kind : "");
+  f.textContent = text || "";
+}
+
+function nextTask() {
+  if (!BANK) return;
+  const topic = settings.topic === "random"
+    ? Object.keys(BANK)[Math.floor(Math.random() * Object.keys(BANK).length)] : settings.topic;
+  const list = BANK[topic][settings.level];
+  let i, tries = 0;
+  do { i = Math.floor(Math.random() * list.length); } while (recent.includes(topic + i) && ++tries < 30);
+  recent.push(topic + i); if (recent.length > 40) recent.shift();
+
+  cur = list[i]; curTopic = topic; solved = false; revealed = false;
+  $("tag").textContent = settings.topic === "random" ? TOPIC_NAME[topic] + " ·" : "";
+  $("prompt").textContent = cur.p;
+  tex($("formula"), cur.q);
+
+  const isChoice = cur.c.t === "choice";
+  $("exprBox").hidden = isChoice;
+  $("choiceBox").hidden = !isChoice;
+  $("ansLabel").textContent = topic === "deriv" ? "f′(x) =" : topic === "int" ? "F(x) =" : "Ответ";
+  $("answer").value = "";
+  $("checkBtn").textContent = "Проверить";
+  $("tools").hidden = false;
+  $("exprBox").querySelector(".field").hidden = $("keys").hidden = $("preview").hidden = false;
+  updatePreview();
+  setFeedback(null);
+  $("solution").classList.remove("show");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function updatePreview() {
+  const p = $("preview"), raw = $("answer").value;
+  if (!raw.trim()) { p.className = "preview err"; p.textContent = "Здесь появится ваш ответ в виде формулы"; return; }
+  try {
+    const node = parseAnswer(raw);
+    p.className = "preview";
+    katex.render(node.toTex({ parenthesis: "auto", implicit: "hide" }), p, { throwOnError: false });
+  } catch (e) {
+    p.className = "preview err";
+    p.textContent = e instanceof UserError ? e.message : "…";
+  }
+}
+
+function showSolution() {
+  const sol = $("solution");
+  if (cur.c.t === "choice") {
+    $("solTex").innerHTML = "";
+    const v = document.createElement("div");
+    v.className = "verdict";
+    v.textContent = cur.c.v === "conv" ? "Ряд сходится" : "Ряд расходится";
+    $("solTex").append(v);
+  } else {
+    tex($("solTex"), cur.a);
+  }
+  $("solNote").textContent = cur.n || "";
+  sol.classList.add("show");
+}
+
+function record(correct) {
+  if (solved || revealed) return;        // после подсказки или повторно — не считаем
+  stats.total++;
+  if (correct) { stats.ok++; stats.streak++; stats.best = Math.max(stats.best, stats.streak); }
+  else stats.streak = 0;
+  saveStats(); renderStats();
+}
+
+function onResult(correct) {
+  record(correct);
+  if (correct) {
+    solved = true;
+    setFeedback("ok", stats.streak >= 3 ? `Верно! Серия: ${stats.streak} 🔥` : "Верно! 🎉");
+    haptic("success");
+    showSolution();
+    $("checkBtn").textContent = "Следующая →";
+    $("tools").hidden = true;
+    if (cur.c.t === "choice") { $("choiceBox").hidden = true; $("exprBox").hidden = false; $("exprBox").querySelector(".field").hidden = true; $("keys").hidden = true; $("preview").hidden = true; }
+  } else {
+    setFeedback("bad", "Неверно — попробуйте ещё раз или посмотрите ответ");
+    haptic("error");
+    const card = $("answerCard");
+    card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
+  }
+}
+
+function onCheck() {
+  if (solved) return nextTask();
+  try {
+    onResult(isCorrect(parseAnswer($("answer").value), cur.c));
+  } catch (e) {
+    setFeedback("info", e instanceof UserError ? e.message : "Не получается проверить этот ответ");
+  }
+}
+
+// ---------- запуск ----------
+async function init() {
+  if (tg) {
+    tg.ready(); tg.expand();
+    try { if (tgAtLeast("6.1")) { tg.setHeaderColor("secondary_bg_color"); tg.setBackgroundColor("secondary_bg_color"); } } catch {}
+  }
+  setupMath();
+  const [s, st] = await Promise.all([store.get("settings"), store.get("stats")]);
+  try { if (s) Object.assign(settings, JSON.parse(s)); } catch {}
+  try { if (st) Object.assign(stats, JSON.parse(st)); } catch {}
+  renderStats(); renderControls(); renderKeys();
+
+  $("answer").addEventListener("input", updatePreview);
+  $("answer").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); onCheck(); } });
+  $("checkBtn").onclick = onCheck;
+  $("nextBtn").onclick = () => { haptic("select"); nextTask(); };
+  $("showBtn").onclick = () => {
+    if (!solved && !revealed) { revealed = true; stats.streak = 0; saveStats(); renderStats(); }
+    showSolution();
+    $("solution").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
+  document.querySelectorAll("[data-choice]").forEach(b => b.onclick = () => {
+    if (solved) return;
+    onResult(b.dataset.choice === cur.c.v);
+  });
+  $("stats").onclick = () => {
+    const msg = `Верно ${stats.ok} из ${stats.total}, лучшая серия ${stats.best}. Сбросить статистику?`;
+    const reset = ok => { if (ok) { stats = { ok: 0, total: 0, streak: 0, best: 0 }; saveStats(); renderStats(); } };
+    if (tgAtLeast("6.2")) tg.showConfirm(msg, reset); else reset(confirm(msg));
+  };
+
+  try {
+    const r = await fetch("tasks.json");
+    if (!r.ok) throw new Error(r.status);
+    BANK = await r.json();
+  } catch {
+    $("loading").textContent = "Не удалось загрузить задачи. Проверьте интернет и откройте приложение заново.";
+    return;
+  }
+  $("loading").hidden = true;
+  $("taskView").hidden = false;
+  nextTask();
+}
+
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>
