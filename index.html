@@ -82,10 +82,11 @@
   .grid button.s2 { background: color-mix(in srgb, var(--danger) 18%, var(--card)); color: var(--danger); font-weight: 600; }
   .grid button.cur { outline: 2px solid var(--accent); outline-offset: -2px; }
 
-  .theory ul { margin: 0; padding-left: 18px; }
-  .theory li { margin: 6px 0; }
-  .ref { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--hint); font-size: 14px; }
-  .ref div { margin-top: 4px; color: var(--text); }
+  .theory h3 { font-size: 15px; margin: 18px 0 6px; color: var(--accent); }
+  .theory h3:first-child { margin-top: 0; }
+  .theory p { margin: 6px 0; line-height: 1.5; }
+  .theory .disp { overflow-x: auto; overflow-y: hidden; margin: 8px 0; }
+  .theory .disp .katex-display { margin: 4px 0; }
 
   .chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px 10px; padding: 0 16px; }
   .chips::-webkit-scrollbar { display: none; }
@@ -123,7 +124,8 @@
   .btn:active { opacity: .8; }
   .row.tools { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 6px; }
   .choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .choice .btn { padding: 16px 0; }
+  .choice.many { grid-template-columns: 1fr; }
+  .choice .btn { padding: 14px 10px; line-height: 1.25; }
 
   .feedback { display: none; border-radius: 12px; padding: 12px 14px; margin-top: 12px; font-weight: 600; }
   .feedback.ok { display: block; background: color-mix(in srgb, var(--ok) 15%, var(--card)); color: var(--ok); }
@@ -157,7 +159,7 @@
 <section id="vHome" hidden>
   <button class="resume" id="resume" hidden></button>
   <div class="list" id="parts"></div>
-  <div class="foot">Задачи — из «Сборника задач и упражнений по математическому анализу» Б. П. Демидовича (условия смотрите в своём экземпляре). Теория — по учебнику В. А. Зорича «Математический анализ. Часть I». Тренировочные задачи сгенерированы автоматически.</div>
+  <div class="foot">Разделы и номера задач — по «Сборнику задач и упражнений по математическому анализу» Б. П. Демидовича (условия — в вашем экземпляре книги). Теория — краткий конспект. Тренировочные задачи сгенерированы автоматически.</div>
 </section>
 
 <!-- Раздел: параграфы -->
@@ -200,8 +202,7 @@
 
   <!-- Теория -->
   <div id="tTheory" class="card theory" hidden>
-    <ul id="theoryList"></ul>
-    <div class="ref" id="refs"></div>
+    <div id="theoryBody"></div>
   </div>
 
   <!-- Тренировка -->
@@ -222,10 +223,7 @@
         <div class="preview err" id="preview"></div>
         <div class="keys" id="keys"></div>
       </div>
-      <div class="choice" id="choiceBox" hidden>
-        <button class="btn ghost" data-choice="conv">Сходится</button>
-        <button class="btn ghost" data-choice="div">Расходится</button>
-      </div>
+      <div class="choice" id="choiceBox" hidden></div>
       <div class="row" id="checkRow"><button class="btn primary" id="checkBtn">Проверить</button></div>
       <div class="feedback" id="feedback"></div>
       <div class="row tools" id="tools">
@@ -368,7 +366,7 @@ function openPart(part) {
     const b = document.createElement("button"); b.className = "item";
     b.innerHTML = `<span class="num">§ ${s.sec}</span><span class="main"><div class="title"></div>
       <div class="meta"><span>№ ${s.from}–${s.to}</span><span>${done}/${total}</span>
-      ${s.zorich.length ? '<span class="badge">теория</span>' : ""}${s.train.length ? '<span class="badge">тренировка</span>' : ""}</div>
+</div>
       <div class="bar"><i style="width:${(100 * done / total).toFixed(1)}%"></i></div></span><span class="chev">›</span>`;
     b.querySelector(".title").textContent = s.title;
     b.onclick = () => { haptic("select"); openSection(s.id); };
@@ -402,6 +400,7 @@ function setTab(tab) {
   $("tTrain").hidden = tab !== "train" || !canTrain;
   $("noTrain").hidden = !(tab === "train" && !canTrain);
   if (tab === "book") renderBook();
+  if (tab === "theory") requestAnimationFrame(fitFormulas);
   if (tab === "train" && canTrain) { renderTrainControls(); if (!cur || cur.secId !== sec.id) nextTask(); }
 }
 
@@ -422,7 +421,7 @@ function renderBook() {
     $("curPage").textContent = "Задачи с отметкой «не вышло» можно перерешать — нажмите на номер ниже.";
   } else {
     $("curNum").textContent = `№ ${cursor}`;
-    $("curPage").textContent = `Задачник, с. ${pageOf(cursor)} · условие и ответ — в книге`;
+    $("curPage").textContent = `Задачник, с. ${pageOf(cursor)} (в PDF — та же страница) · условие и ответ — в книге`;
   }
   for (const id of ["markOk", "markBad", "skipBtn"]) $(id).disabled = cursor === -1;
   const total = sec.to - sec.from + 1, ok = solved.count(sec.from, sec.to), bad = failed.count(sec.from, sec.to);
@@ -450,15 +449,42 @@ function mark(s) {
 }
 
 // ---------- теория ----------
-function renderTheory() {
-  const ul = $("theoryList"); ul.innerHTML = "";
-  for (const line of sec.theory) { const li = document.createElement("li"); li.textContent = line; ul.append(li); }
-  const refs = $("refs"); refs.innerHTML = "";
-  if (sec.zorich.length) {
-    refs.textContent = "Подробно в учебнике:";
-    for (const r of sec.zorich) { const d = document.createElement("div"); d.textContent = r; refs.append(d); }
+function mathHTML(src, display) {
+  try { return katex.renderToString(src, { displayMode: display, throwOnError: false }); }
+  catch { const d = document.createElement("span"); d.textContent = src; return d.innerHTML; }
+}
+function inlineHTML(text) {
+  return text.split(/(\$[^$]+\$)/).map(part => {
+    if (part.startsWith("$") && part.endsWith("$") && part.length > 1) return mathHTML(part.slice(1, -1), false);
+    const d = document.createElement("span"); d.textContent = part; return d.innerHTML;
+  }).join("");
+}
+// Широкие формулы уменьшаем под ширину экрана (замер возможен, только когда вкладка видна)
+function fitFormulas() {
+  for (const el of document.querySelectorAll("#theoryBody .katex-display")) {
+    el.style.fontSize = "";
+    let scale = 1;
+    for (let pass = 0; pass < 3; pass++) {  // масштаб формулы не строго пропорционален — уточняем
+      const over = el.scrollWidth / Math.max(1, el.clientWidth);
+      if (over <= 1.01 || scale <= 0.7) break;
+      scale = Math.max(0.7, scale * 0.98 / over);
+      el.style.fontSize = scale * 100 + "%";
+    }
   }
-  refs.hidden = !sec.zorich.length;
+}
+function renderTheory() {
+  const box = $("theoryBody"); box.innerHTML = "";
+  for (const b of sec.theory) {
+    let el;
+    if (b.startsWith("## ")) { el = document.createElement("h3"); el.innerHTML = inlineHTML(b.slice(3)); }
+    else if (b.startsWith("$$") && b.endsWith("$$")) {
+      // несколько формул через \qquad — отдельными строками, чтобы на телефоне не уезжали вправо
+      el = document.createElement("div"); el.className = "disp";
+      el.innerHTML = b.slice(2, -2).split(/\s*,?\s*\\qquad\s*/).map(f => mathHTML(f, true)).join("");
+    }
+    else { el = document.createElement("p"); el.innerHTML = inlineHTML(b); }
+    box.append(el);
+  }
 }
 
 // ---------- тренировка ----------
@@ -468,7 +494,8 @@ const KEYS = [
   ["tg(", "tg", "fn"], ["ln(", "ln", "fn"], ["arctg(", "arctg", "fn"], ["⌫", "⌫"],
 ];
 const LEVELS = [[1, "Лёгкий"], [2, "Средний"], [3, "Сложный"]];
-const LABELS = { deriv: "f′(x) =", deriv2: "f″(x) =", taylor: "P(x) =", int: "F(x) =" };
+const LABELS = { deriv: "f′(x) =", deriv2: "f″(x) =", taylor: "P(x) =", tangent: "y =", asymptote: "y =",
+  inverse: "f⁻¹(x) =", approx: "B(x) =" };
 let trainTopic = null, cur = null, solvedTask = false, revealed = false;
 const recent = [];
 
@@ -521,7 +548,7 @@ function isCorrect(node, check) {
   if (check.t === "value") {
     if (node.filter(n => n.type === "SymbolNode" && n.name === "x").length)
       throw new UserError("Здесь ответ — число, в нём не должно быть x");
-    return close(at(0), check.v, 1e-7);
+    return close(at(0), check.v, 1e-10);
   }
   if (check.t === "func") return check.pts.every(([p, y]) => close(at(p), y, 1e-6));
   return check.pts.every(([p, y]) => {   // antideriv: численно дифференцируем ответ
@@ -580,9 +607,18 @@ function nextTask() {
   cur = { ...list[i], secId: sec.id }; solvedTask = false; revealed = false;
   $("prompt").textContent = cur.p;
   tex($("formula"), cur.q);
-  const isChoice = cur.c.t === "choice";
+  const isChoice = cur.c.t === "mc";
   $("exprBox").hidden = isChoice; $("checkRow").hidden = isChoice; $("choiceBox").hidden = !isChoice;
-  $("ansLabel").textContent = LABELS[trainTopic] || "Ответ";
+  $("ansLabel").textContent = cur.c.t === "antideriv" ? "F(x) =" : cur.c.t === "func" ? (LABELS[trainTopic] || "Ответ") : "Ответ";
+  const box = $("choiceBox"); box.innerHTML = "";
+  if (isChoice) {
+    box.classList.toggle("many", cur.c.opts.length > 2 || cur.c.opts.some(o => o.length > 14));
+    cur.c.opts.forEach((o, i) => {
+      const btn = document.createElement("button"); btn.className = "btn ghost"; btn.textContent = o;
+      btn.onclick = () => { if (!solvedTask) onResult(i === cur.c.v); };
+      box.append(btn);
+    });
+  }
   $("answer").value = ""; $("checkBtn").textContent = "Проверить";
   $("tools").hidden = false; $("solution").hidden = true;
   updatePreview(); setFeedback(null);
@@ -599,10 +635,10 @@ function updatePreview() {
 }
 
 function showSolution() {
-  if (cur.c.t === "choice") {
+  if (cur.c.t === "mc") {
     $("solTex").innerHTML = "";
     const v = document.createElement("div"); v.className = "verdict";
-    v.textContent = cur.c.v === "conv" ? "Ряд сходится" : "Ряд расходится";
+    v.textContent = cur.c.opts[cur.c.v];
     $("solTex").append(v);
   } else tex($("solTex"), cur.a);
   $("solNote").textContent = cur.n || "";
@@ -650,7 +686,6 @@ async function init() {
   $("checkBtn").onclick = onCheck;
   $("nextBtn").onclick = () => { haptic("select"); nextTask(); };
   $("showBtn").onclick = () => { revealed = true; showSolution(); $("solution").scrollIntoView({ behavior: "smooth", block: "nearest" }); };
-  document.querySelectorAll("[data-choice]").forEach(b => b.onclick = () => { if (!solvedTask) onResult(b.dataset.choice === cur.c.v); });
 
   try {
     // no-cache: браузер каждый раз сверяется с сервером, чтобы после обновления не показывать старый банк
@@ -665,6 +700,7 @@ async function init() {
   openHome();
 }
 document.addEventListener("DOMContentLoaded", init);
+window.addEventListener("resize", () => { if (view.tab === "theory") fitFormulas(); });
 </script>
 </body>
 </html>
